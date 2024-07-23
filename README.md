@@ -1,10 +1,13 @@
 # bz1-binance
-Simple project for list Binance convert history.
+
+Simple project for Binance Orders Convert History.
 
 ## Why?
-Needed to list all my convert history Pairs.
+
+Needed to list all my Pair Orders Convert History, and the Binance UX/UI was not so good for this.
 
 ## "User Secerts"
+
 ```
 {
   "API_KEY": "your binance api key",
@@ -14,4 +17,5 @@ Needed to list all my convert history Pairs.
 ```
 
 ## Links
+
 [Binance Api Management](https://www.binance.com/en/my/settings/api-management)
