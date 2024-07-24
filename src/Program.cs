@@ -29,9 +29,12 @@ var startDate = DateTime.Parse(configuration["START_DATE"]!);
 var dateFormat = "yyyy/MM/dd";
 
 Console.WriteLine();
-while (startDate <= DateTime.Today)
+while (startDate < DateTime.Today)
 {
     var endDate = startDate.AddDays(30);
+
+    if (endDate > DateTime.Today)
+        endDate = DateTime.Today.AddDays(1).AddMilliseconds(-1);
 
     var currentTradeHistory = await binanceRestClient.SpotApi.Trading.GetConvertTradeHistoryAsync(startDate, endDate);
     if (currentTradeHistory.Success)
