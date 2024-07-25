@@ -6,7 +6,7 @@ Simple project for Binance Orders Convert History.
 
 Needed to list all my Pair Orders Convert History, and the Binance UX/UI was not so good for this.
 
-## "User Secerts"
+## "User Secrets"
 
 ```
 {
