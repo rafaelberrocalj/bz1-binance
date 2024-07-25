@@ -52,6 +52,7 @@ while (startDate < DateTime.Today)
 }
 
 var integrationPairs = new List<string>();
+var tickers = new List<string>();
 
 Console.WriteLine();
 foreach (var historyItem in binanceConvertTradeList.Select(s => new
@@ -66,9 +67,14 @@ foreach (var historyItem in binanceConvertTradeList.Select(s => new
     Console.WriteLine($"historyItem={historyItem}");
 
     integrationPairs.Add(historyItem.Pair);
+    tickers.Add(historyItem.QuoteAsset);
+    tickers.Add(historyItem.BaseAsset);
 }
 
 Console.WriteLine();
 Console.WriteLine($"integrationPair={JsonSerializer.Serialize(integrationPairs.Distinct().OrderBy(q => q))}");
+
+Console.WriteLine();
+Console.WriteLine($"tickers={JsonSerializer.Serialize(tickers.Distinct().OrderBy(q => q))}");
 
 Console.ReadLine();
