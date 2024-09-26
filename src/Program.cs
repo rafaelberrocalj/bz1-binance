@@ -1,11 +1,8 @@
-﻿using System.Reflection;
-using System.Text.Json;
-
-using Binance.Net.Clients;
-
+﻿using Binance.Net.Clients;
 using CryptoExchange.Net.Authentication;
-
 using Microsoft.Extensions.Configuration;
+using System.Reflection;
+using System.Text.Json;
 
 var builder = new ConfigurationBuilder()
     .AddEnvironmentVariables()
