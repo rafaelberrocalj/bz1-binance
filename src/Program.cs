@@ -1,4 +1,7 @@
 ﻿using Binance.Net.Clients;
+using Binance.Net.Enums;
+using Binance.Net.Objects.Models.Spot;
+using Binance.Net.Objects.Models.Spot.Convert;
 using CryptoExchange.Net.Authentication;
 using Microsoft.Extensions.Configuration;
 using System.Reflection;
@@ -20,58 +23,98 @@ var binanceRestClient = new BinanceRestClient(options =>
     options.ApiCredentials = new ApiCredentials(configuration["API_KEY"]!, configuration["API_SECRET"]!);
 });
 
-var binanceConvertTradeList = new List<Binance.Net.Objects.Models.Spot.Convert.BinanceConvertTrade>();
+var binanceConvertTradeList = new List<BinanceConvertTrade>();
+var binanceFiatWithdrawDepositList = new List<BinanceFiatWithdrawDeposit>();
 
+var dateFormat = configuration["DATE_FORMAT"] ?? "yyyy/MM/dd";
 var startDate = DateTime.Parse(configuration["START_DATE"]!);
-var dateFormat = "yyyy/MM/dd";
 
-Console.WriteLine();
-while (startDate < DateTime.Today)
+async Task FetchData()
 {
-    var endDate = startDate.AddDays(30);
+    Console.WriteLine();
+    Console.WriteLine($" ~~~ {nameof(FetchData)} ~~~ ");
 
-    if (endDate > DateTime.Today)
-        endDate = DateTime.Today.AddDays(1).AddMilliseconds(-1);
-
-    var currentTradeHistory = await binanceRestClient.SpotApi.Trading.GetConvertTradeHistoryAsync(startDate, endDate);
-    if (currentTradeHistory.Success)
+    while (startDate < DateTime.Today)
     {
-        binanceConvertTradeList.AddRange(currentTradeHistory.Data.Data);
+        var endDate = startDate.AddDays(30);
 
-        Console.WriteLine($"listing trade history from {startDate.ToString(dateFormat)} to {endDate.ToString(dateFormat)} with {currentTradeHistory.Data.Data.Count()} results");
-    }
-    else
-    {
-        Console.WriteLine($"listing trade history from {startDate.ToString(dateFormat)} to {endDate.ToString(dateFormat)} with error {currentTradeHistory.Error?.Message}");
-    }
+        if (endDate > DateTime.Today)
+            endDate = DateTime.Today.AddDays(1).AddMilliseconds(-1);
 
-    startDate = endDate;
+        Console.WriteLine($"* listing values from {startDate.ToString(dateFormat)} to {endDate.ToString(dateFormat)}");
+
+        var fiatDepositWithdrawHistory = await binanceRestClient.SpotApi.Account.GetFiatDepositWithdrawHistoryAsync(TransactionType.Deposit, startTime: startDate, endTime: endDate);
+        if (fiatDepositWithdrawHistory.Success)
+        {
+            binanceFiatWithdrawDepositList.AddRange(fiatDepositWithdrawHistory.Data);
+
+            Console.WriteLine($"  - fiat deposit history with {fiatDepositWithdrawHistory.Data.Count()} results");
+        }
+
+        var currentTradeHistory = await binanceRestClient.SpotApi.Trading.GetConvertTradeHistoryAsync(startDate, endDate);
+        if (currentTradeHistory.Success)
+        {
+            binanceConvertTradeList.AddRange(currentTradeHistory.Data.Data);
+
+            Console.WriteLine($"  - convert trade history with {currentTradeHistory.Data.Data.Count()} results");
+        }
+
+        startDate = endDate;
+    }
 }
 
-var integrationPairs = new List<string>();
-var tickers = new List<string>();
-
-Console.WriteLine();
-foreach (var historyItem in binanceConvertTradeList.Select(s => new
+void ShowDepositHistory()
 {
-    Pair = s.QuoteAsset + s.BaseAsset,
-    s.QuoteAsset,
-    s.BaseAsset,
-    CreateLocalTime = s.CreateTime.ToLocalTime(),
-    CreateUniversalTime = s.CreateTime.ToUniversalTime()
-}))
-{
-    Console.WriteLine($"historyItem={historyItem}");
+    Console.WriteLine();
+    Console.WriteLine($" ~~~ {nameof(ShowDepositHistory)} ~~~ ");
 
-    integrationPairs.Add(historyItem.Pair);
-    tickers.Add(historyItem.QuoteAsset);
-    tickers.Add(historyItem.BaseAsset);
+    var validDepositHistory = binanceFiatWithdrawDepositList.Where(w => w.Status == FiatWithdrawDepositStatus.Successful);
+
+    foreach (var depositItem in validDepositHistory.Select(s => new
+    {
+        s.CreateTime,
+        s.UpdateTime,
+        s.Quantity,
+        s.FiatAsset
+    }))
+    {
+        Console.WriteLine($"depositItem={depositItem}");
+    }
+
+    Console.WriteLine($"depositHistoryTotal={validDepositHistory.Sum(s => s.Quantity)}");
 }
 
-Console.WriteLine();
-Console.WriteLine($"integrationPair={JsonSerializer.Serialize(integrationPairs.Distinct().OrderBy(q => q))}");
+void ShowIntegrationPairsWithTickers()
+{
+    Console.WriteLine();
+    Console.WriteLine($" ~~~ {nameof(ShowIntegrationPairsWithTickers)} ~~~ ");
 
-Console.WriteLine();
-Console.WriteLine($"tickers={JsonSerializer.Serialize(tickers.Distinct().OrderBy(q => q))}");
+    var integrationPairs = new List<string>();
+    var tickers = new List<string>();
+
+    foreach (var historyItem in binanceConvertTradeList.Select(s => new
+    {
+        Pair = s.QuoteAsset + s.BaseAsset,
+        s.QuoteAsset,
+        s.BaseAsset,
+        CreateLocalTime = s.CreateTime.ToLocalTime(),
+        CreateUniversalTime = s.CreateTime.ToUniversalTime()
+    }))
+    {
+        Console.WriteLine($"historyItem={historyItem}");
+
+        integrationPairs.Add(historyItem.Pair);
+        tickers.Add(historyItem.QuoteAsset);
+        tickers.Add(historyItem.BaseAsset);
+    }
+
+    Console.WriteLine($"integrationPair={JsonSerializer.Serialize(integrationPairs.Distinct().OrderBy(q => q))}");
+
+    Console.WriteLine($"tickers={JsonSerializer.Serialize(tickers.Distinct().OrderBy(q => q))}");
+}
+
+await FetchData();
+ShowDepositHistory();
+ShowIntegrationPairsWithTickers();
 
 Console.ReadLine();
