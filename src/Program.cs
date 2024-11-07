@@ -13,6 +13,7 @@ var builder = new ConfigurationBuilder()
 var configuration = builder.Build();
 
 Console.WriteLine($"bz1-binance starting");
+Console.WriteLine();
 
 ArgumentNullException.ThrowIfNullOrWhiteSpace(configuration["API_KEY"], "API_KEY");
 ArgumentNullException.ThrowIfNullOrWhiteSpace(configuration["API_SECRET"], "API_SECRET");
@@ -24,14 +25,14 @@ var binanceRestClient = new BinanceRestClient(options =>
 });
 
 var binanceConvertTradeList = new List<BinanceConvertTrade>();
-var binanceFiatWithdrawDepositList = new List<BinanceFiatWithdrawDeposit>();
+var binanceFiatDepositList = new List<BinanceFiatWithdrawDeposit>();
+var binanceFiatWithdrawList = new List<BinanceFiatWithdrawDeposit>();
 
 var dateFormat = configuration["DATE_FORMAT"] ?? "yyyy/MM/dd";
 var startDate = DateTime.Parse(configuration["START_DATE"]!);
 
 async Task FetchData()
 {
-    Console.WriteLine();
     Console.WriteLine($" ~~~ {nameof(FetchData)} ~~~ ");
 
     while (startDate < DateTime.Today)
@@ -43,12 +44,20 @@ async Task FetchData()
 
         Console.WriteLine($"* listing values from {startDate.ToString(dateFormat)} to {endDate.ToString(dateFormat)}");
 
-        var fiatDepositWithdrawHistory = await binanceRestClient.SpotApi.Account.GetFiatDepositWithdrawHistoryAsync(TransactionType.Deposit, startTime: startDate, endTime: endDate);
-        if (fiatDepositWithdrawHistory.Success)
+        var fiatDepositHistory = await binanceRestClient.SpotApi.Account.GetFiatDepositWithdrawHistoryAsync(TransactionType.Deposit, startTime: startDate, endTime: endDate);
+        if (fiatDepositHistory.Success)
         {
-            binanceFiatWithdrawDepositList.AddRange(fiatDepositWithdrawHistory.Data);
+            binanceFiatDepositList.AddRange(fiatDepositHistory.Data);
 
-            Console.WriteLine($"  - fiat deposit history with {fiatDepositWithdrawHistory.Data.Count()} results");
+            Console.WriteLine($"  - fiat deposit history with {fiatDepositHistory.Data.Count()} results");
+        }
+
+        var fiatWithdrawHistory = await binanceRestClient.SpotApi.Account.GetFiatDepositWithdrawHistoryAsync(TransactionType.Withdrawal, startTime: startDate, endTime: endDate);
+        if (fiatWithdrawHistory.Success)
+        {
+            binanceFiatWithdrawList.AddRange(fiatWithdrawHistory.Data);
+
+            Console.WriteLine($"  - fiat withdrawal history with {fiatWithdrawHistory.Data.Count()} results");
         }
 
         var currentTradeHistory = await binanceRestClient.SpotApi.Trading.GetConvertTradeHistoryAsync(startDate, endDate);
@@ -68,7 +77,10 @@ void ShowDepositHistory()
     Console.WriteLine();
     Console.WriteLine($" ~~~ {nameof(ShowDepositHistory)} ~~~ ");
 
-    var validDepositHistory = binanceFiatWithdrawDepositList.Where(w => w.Status == FiatWithdrawDepositStatus.Successful);
+    var validDepositHistory = binanceFiatDepositList
+        .Where(w => w.Status == FiatWithdrawDepositStatus.Successful)
+        .OrderBy(q => q.CreateTime)
+        .ThenBy(q => q.UpdateTime);
 
     foreach (var depositItem in validDepositHistory.Select(s => new
     {
@@ -84,6 +96,30 @@ void ShowDepositHistory()
     Console.WriteLine($"depositHistoryTotal={validDepositHistory.Sum(s => s.Quantity)}");
 }
 
+void ShowWithdrawHistory()
+{
+    Console.WriteLine();
+    Console.WriteLine($" ~~~ {nameof(ShowWithdrawHistory)} ~~~ ");
+
+    var validWithdrawHistory = binanceFiatWithdrawList
+        .Where(w => w.Status == FiatWithdrawDepositStatus.Successful)
+        .OrderBy(q => q.CreateTime)
+        .ThenBy(q => q.UpdateTime);
+
+    foreach (var withdrawItem in validWithdrawHistory.Select(s => new
+    {
+        s.CreateTime,
+        s.UpdateTime,
+        s.Quantity,
+        s.FiatAsset
+    }))
+    {
+        Console.WriteLine($"withdrawItem={withdrawItem}");
+    }
+
+    Console.WriteLine($"withdrawItemHistoryTotal={validWithdrawHistory.Sum(s => s.Quantity)}");
+}
+
 void ShowIntegrationPairsWithTickers()
 {
     Console.WriteLine();
@@ -92,7 +128,10 @@ void ShowIntegrationPairsWithTickers()
     var integrationPairs = new List<string>();
     var tickers = new List<string>();
 
-    foreach (var historyItem in binanceConvertTradeList.Select(s => new
+    var validBinanceConvertTradeList = binanceConvertTradeList
+        .OrderBy(q => q.CreateTime);
+
+    foreach (var historyItem in validBinanceConvertTradeList.Select(s => new
     {
         Pair = s.QuoteAsset + s.BaseAsset,
         s.QuoteAsset,
@@ -115,6 +154,10 @@ void ShowIntegrationPairsWithTickers()
 
 await FetchData();
 ShowDepositHistory();
+ShowWithdrawHistory();
 ShowIntegrationPairsWithTickers();
+
+Console.WriteLine();
+Console.WriteLine($"bz1-binance ending");
 
 Console.ReadLine();
