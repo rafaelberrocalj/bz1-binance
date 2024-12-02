@@ -37,35 +37,38 @@ async Task FetchData()
 
     while (startDate < DateTime.Today)
     {
-        var endDate = startDate.AddDays(30);
+        var endDate = startDate.AddDays(60);
 
         if (endDate > DateTime.Today)
             endDate = DateTime.Today.AddDays(1).AddMilliseconds(-1);
 
         Console.WriteLine($"* listing values from {startDate.ToString(dateFormat)} to {endDate.ToString(dateFormat)}");
 
-        var fiatDepositHistory = await binanceRestClient.SpotApi.Account.GetFiatDepositWithdrawHistoryAsync(TransactionType.Deposit, startTime: startDate, endTime: endDate);
-        if (fiatDepositHistory.Success)
-        {
-            binanceFiatDepositList.AddRange(fiatDepositHistory.Data);
+        var fiatDepositHistoryTask = binanceRestClient.SpotApi.Account.GetFiatDepositWithdrawHistoryAsync(TransactionType.Deposit, startTime: startDate, endTime: endDate);
+        var fiatWithdrawHistoryTask = binanceRestClient.SpotApi.Account.GetFiatDepositWithdrawHistoryAsync(TransactionType.Withdrawal, startTime: startDate, endTime: endDate);
+        var currentTradeHistoryTask = binanceRestClient.SpotApi.Trading.GetConvertTradeHistoryAsync(startDate, endDate);
 
-            Console.WriteLine($"  - fiat deposit history with {fiatDepositHistory.Data.Count()} results");
+        await Task.WhenAll(fiatDepositHistoryTask, fiatWithdrawHistoryTask, currentTradeHistoryTask);
+
+        if (fiatDepositHistoryTask.Result.Success)
+        {
+            binanceFiatDepositList.AddRange(fiatDepositHistoryTask.Result.Data);
+
+            Console.WriteLine($"  - fiat deposit history with {fiatDepositHistoryTask.Result.Data.Count()} results");
         }
 
-        var fiatWithdrawHistory = await binanceRestClient.SpotApi.Account.GetFiatDepositWithdrawHistoryAsync(TransactionType.Withdrawal, startTime: startDate, endTime: endDate);
-        if (fiatWithdrawHistory.Success)
+        if (fiatWithdrawHistoryTask.Result.Success)
         {
-            binanceFiatWithdrawList.AddRange(fiatWithdrawHistory.Data);
+            binanceFiatWithdrawList.AddRange(fiatWithdrawHistoryTask.Result.Data);
 
-            Console.WriteLine($"  - fiat withdrawal history with {fiatWithdrawHistory.Data.Count()} results");
+            Console.WriteLine($"  - fiat withdrawal history with {fiatWithdrawHistoryTask.Result.Data.Count()} results");
         }
 
-        var currentTradeHistory = await binanceRestClient.SpotApi.Trading.GetConvertTradeHistoryAsync(startDate, endDate);
-        if (currentTradeHistory.Success)
+        if (currentTradeHistoryTask.Result.Success)
         {
-            binanceConvertTradeList.AddRange(currentTradeHistory.Data.Data);
+            binanceConvertTradeList.AddRange(currentTradeHistoryTask.Result.Data.Data);
 
-            Console.WriteLine($"  - convert trade history with {currentTradeHistory.Data.Data.Count()} results");
+            Console.WriteLine($"  - convert trade history with {currentTradeHistoryTask.Result.Data.Data.Count()} results");
         }
 
         startDate = endDate;
