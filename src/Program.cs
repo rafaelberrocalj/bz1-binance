@@ -123,6 +123,10 @@ async Task FetchData()
     }
 }
 
+binanceConvertTradeList = localDataStorageModel.FetchedDataList.SelectMany(sm => sm.BinanceConvertTradeList).ToList();
+binanceFiatDepositList = localDataStorageModel.FetchedDataList.SelectMany(sm => sm.BinanceFiatDepositList).ToList();
+binanceFiatWithdrawList = localDataStorageModel.FetchedDataList.SelectMany(sm => sm.BinanceFiatWithdrawList).ToList();
+
 void ShowDepositHistory()
 {
     Console.WriteLine();
@@ -210,5 +214,3 @@ ShowIntegrationPairsWithTickers();
 
 Console.WriteLine();
 Console.WriteLine($"bz1-binance ending");
-
-Console.ReadLine();

@@ -4,7 +4,7 @@ using Binance.Net.Objects.Models.Spot.Convert;
 public class LocalDataStorage
 {
     public DateTime? LastRunDate { get; set; }
-    public List<FetchedData> FetchedDataList { get; set; } = new List<FetchedData>();
+    public IList<FetchedData> FetchedDataList { get; set; } = new List<FetchedData>();
     public class FetchedData
     {
         public DateTime StartDate { get; set; }
