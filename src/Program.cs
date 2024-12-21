@@ -24,12 +24,52 @@ var binanceRestClient = new BinanceRestClient(options =>
     options.ApiCredentials = new ApiCredentials(configuration["API_KEY"]!, configuration["API_SECRET"]!);
 });
 
+var jsonSerializerSettings = new JsonSerializerOptions
+{
+    WriteIndented = true
+};
+var localDataStorageFileName = "localDataStorage.json";
+
+Func<string, LocalDataStorage> LoadLocalDataStorage = (string _localDataStorageFileName) =>
+{
+    Console.WriteLine($" ~~~ {nameof(LoadLocalDataStorage)} ~~~ ");
+    if (File.Exists(_localDataStorageFileName))
+    {
+        var offlineDataFileContent = File.ReadAllText(_localDataStorageFileName);
+        return JsonSerializer.Deserialize<LocalDataStorage>(offlineDataFileContent) ?? new LocalDataStorage();
+    }
+    return new LocalDataStorage();
+};
+
+var localDataStorageModel = LoadLocalDataStorage(localDataStorageFileName);
+
+Action<DateTime, DateTime, IEnumerable<BinanceFiatWithdrawDeposit>, IEnumerable<BinanceFiatWithdrawDeposit>, IEnumerable<BinanceConvertTrade>> SaveLocalDataStorage = (startDate, endDate, fiatDeposits, fiatWithdrawals, convertTrades) =>
+{
+    localDataStorageModel.LastRunDate = endDate;
+    localDataStorageModel.FetchedDataList.Add(new LocalDataStorage.FetchedData
+    {
+        StartDate = startDate,
+        EndDate = endDate,
+        BinanceConvertTradeList = convertTrades,
+        BinanceFiatDepositList = fiatDeposits,
+        BinanceFiatWithdrawList = fiatWithdrawals
+    });
+    var offlineDataFileContent = JsonSerializer.Serialize(localDataStorageModel, jsonSerializerSettings);
+    File.WriteAllText(localDataStorageFileName, offlineDataFileContent);
+    Console.WriteLine($" ~~~ {nameof(SaveLocalDataStorage)} ~~~ ");
+};
+
 var binanceConvertTradeList = new List<BinanceConvertTrade>();
 var binanceFiatDepositList = new List<BinanceFiatWithdrawDeposit>();
 var binanceFiatWithdrawList = new List<BinanceFiatWithdrawDeposit>();
 
 var dateFormat = configuration["DATE_FORMAT"] ?? "yyyy/MM/dd";
 var startDate = DateTime.Parse(configuration["START_DATE"]!);
+
+if (localDataStorageModel.LastRunDate.HasValue)
+{
+    startDate = localDataStorageModel.LastRunDate.Value;
+}
 
 async Task FetchData()
 {
@@ -70,6 +110,14 @@ async Task FetchData()
 
             Console.WriteLine($"  - convert trade history with {currentTradeHistoryTask.Result.Data.Data.Count()} results");
         }
+
+        SaveLocalDataStorage(
+            startDate,
+            endDate,
+            fiatDepositHistoryTask.Result.Data,
+            fiatWithdrawHistoryTask.Result.Data,
+            currentTradeHistoryTask.Result.Data.Data
+        );
 
         startDate = endDate;
     }
